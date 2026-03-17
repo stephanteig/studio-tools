@@ -4,21 +4,9 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -32,11 +20,15 @@ jobs:
       - name: Build
         run: npm run build
 
-      - uses: actions/configure-pages@v4
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-      - uses: actions/deploy-pages@v4
-        id: deployment
+      - name: Deploy to stephanteig.github.io
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git clone https://x-access-token:${{ secrets.PAGES_TOKEN }}@github.com/stephanteig/stephanteig.github.io.git pages-repo
+          rm -rf pages-repo/studio-tools
+          mkdir -p pages-repo/studio-tools
+          cp -r dist/* pages-repo/studio-tools/
+          cd pages-repo
+          git add .
+          git diff --cached --quiet || git commit -m "deploy: update studio-tools from ${{ github.sha }}"
+          git push
