@@ -1,52 +1,44 @@
-import { load, Store } from "@tauri-apps/plugin-store";
+// In Tauri: uses plugin-store (file-based). In browser/PWA: falls back to localStorage.
 
-let storeInstance: Store | null = null;
-let initPromise: Promise<Store | null> | null = null;
+let tauriStore: import("@tauri-apps/plugin-store").Store | null = null;
+let tauriInitDone = false;
 
-export async function getStore(): Promise<Store | null> {
-  if (storeInstance) return storeInstance;
-  if (initPromise) return initPromise;
-
-  initPromise = (async () => {
-    try {
-      const s = await load("store.json", { autoSave: true, defaults: {} });
-      storeInstance = s;
-      return s;
-    } catch (e) {
-      console.warn("Store not available (browser mode?):", e);
-      return null;
-    }
-  })();
-
-  return initPromise;
+async function getTauriStore() {
+  if (tauriInitDone) return tauriStore;
+  tauriInitDone = true;
+  try {
+    const { load } = await import("@tauri-apps/plugin-store");
+    tauriStore = await load("store.json", { autoSave: true, defaults: {} });
+  } catch {
+    tauriStore = null;
+  }
+  return tauriStore;
 }
 
 export async function storeGet<T>(key: string): Promise<T | undefined> {
-  const s = await getStore();
-  if (!s) return undefined;
-  try {
-    return await s.get<T>(key);
-  } catch {
-    return undefined;
+  const s = await getTauriStore();
+  if (s) {
+    try { return await s.get<T>(key); } catch { return undefined; }
   }
+  const raw = localStorage.getItem(key);
+  if (raw == null) return undefined;
+  try { return JSON.parse(raw) as T; } catch { return undefined; }
 }
 
 export async function storeSet(key: string, value: unknown): Promise<void> {
-  const s = await getStore();
-  if (!s) return;
-  try {
-    await s.set(key, value);
-  } catch (e) {
-    console.warn("Store set failed:", e);
+  const s = await getTauriStore();
+  if (s) {
+    try { await s.set(key, value); } catch {}
+    return;
   }
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
 export async function storeDelete(key: string): Promise<void> {
-  const s = await getStore();
-  if (!s) return;
-  try {
-    await s.delete(key);
-  } catch (e) {
-    console.warn("Store delete failed:", e);
+  const s = await getTauriStore();
+  if (s) {
+    try { await s.delete(key); } catch {}
+    return;
   }
+  localStorage.removeItem(key);
 }
