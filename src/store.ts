@@ -9,7 +9,7 @@ export async function getStore(): Promise<Store | null> {
 
   initPromise = (async () => {
     try {
-      const s = await load("store.json", { autoSave: true });
+      const s = await load("store.json", { autoSave: true, defaults: {} });
       storeInstance = s;
       return s;
     } catch (e) {
